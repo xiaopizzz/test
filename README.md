@@ -83,3 +83,6 @@ python3 best.py
 `rm_demo` 启动时会以 115200 波特率自动打开 `/dev/ttyUSB0`。每检测到一个有效装甲板，程序向串口发送 `0xAA + 4 字节 float 中心x(像素) + 4 字节 float 中心y(像素) + 0xBB`；终端出现 `Serial TX` 即表示一帧已写入 USB-TTL。接收端必须按相同的 32 位浮点字节序，依次解析 `x` 和 `y`。
 
 串口使用示例：`mySerialPort port; port.open("/dev/ttyUSB0", 115200);`。
+
+# 串口接收+发送
+本文件内容在stm32上使用，用keil5编译，用于接收/发送串口信息在OLED显示屏上显示
