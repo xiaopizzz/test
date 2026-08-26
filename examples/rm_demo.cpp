@@ -15,7 +15,7 @@
 //   - 输入：摄像头编号（如 "0"）或图片路径。可用 --yolo 切换 YOLO 检测模式。
 //   - 图片模式：只处理一帧并保存结果图。
 //   - 摄像头模式：持续读取、处理、显示，并计算移动速度，按 Esc 退出。
-//   - 每检测到有效装甲板，就把距离(单位 mm)以 4 字节 float 通过串口发出。
+//   - 每检测到有效装甲板，就把中心坐标(x,y)以两个 4 字节 float 通过串口发出。
 // ============================================================================
 int main(int argc, char** argv) {
     // 处理 --help：打印用法后退出。
@@ -44,15 +44,19 @@ int main(int argc, char** argv) {
     if (serial.open(serial_device, 115200)) std::cout << "Serial opened: " << serial_device << " @ 115200\n";
     else std::cerr << "Warning: cannot open " << serial_device << "; serial transmission is disabled\n";
 
-    // 有效载荷为一个 32 位 IEEE-754 float，单位 mm；writeFrame 会自动加 0xAA 帧头和 0xBB 帧尾。
-    // send_distance 是一个 lambda，负责把距离打包成 4 字节并写串口。
-    auto send_distance = [&](double distance_mm) {
+    // 有效载荷为两个连续的 32 位 IEEE-754 float（x、y，单位为像素）；
+    // writeFrame 会自动加 0xAA 帧头和 0xBB 帧尾。
+    // send_center 负责把装甲板中心坐标打包成 8 字节并写串口。
+    auto send_center = [&](cv::Point2f center) {
         if (!serial.isOpen()) return; // 未打开串口则跳过发送。
-        const float value = static_cast<float>(distance_mm); // 转成单精度。
-        std::vector<uint8_t> payload(sizeof(value));         // 4 字节缓冲。
-        std::memcpy(payload.data(), &value, sizeof(value));  // 用 memcpy 保留浮点内存表示。
+        const float x = center.x, y = center.y;
+        std::vector<uint8_t> payload(sizeof(x) + sizeof(y));
+        // 按 x、y 顺序写入，接收端按相同的 32 位浮点字节序解析。
+        std::memcpy(payload.data(), &x, sizeof(x));
+        std::memcpy(payload.data() + sizeof(x), &y, sizeof(y));
         if (!serial.writeFrame(payload)) std::cerr << "Serial write failed\n";
-        else std::cout << "Serial TX: AA + float(distance_mm=" << value << ") + BB\n";
+        else std::cout << "Serial TX: AA + float(center_x=" << x
+                      << ", center_y=" << y << ") + BB\n";
     };
 
     // process 是对单帧图像的处理闭包：检测→测距→跟踪→绘图→发送→左上角信息叠加。
@@ -78,7 +82,8 @@ int main(int argc, char** argv) {
             auto p = pose.estimate(t); pose.drawAxes(image, p);
             observer.update(t.center, now);
             cv::arrowedLine(image, t.center, observer.predicted(), {0, 255, 255}, 2);
-            if (p.valid) send_distance(p.distance);
+            // 中心坐标来自检测结果本身，不要求 solvePnP 姿态解算成功。
+            send_center(t.center);
             draw_info(color, t.center, p.distance, observer.speed());
             std::cout << color << " center=" << t.center << " distance_mm=" << p.distance
                       << " speed_pixel_s=" << observer.speed() << "\n";

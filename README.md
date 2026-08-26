@@ -57,7 +57,7 @@ YOLO 模式：
 ./build/rm_demo --yolo 0
 ```
 
-项目 4 已经自动被 rm_demo 调用：识别到有效装甲板后会将距离通过 /dev/ttyUSB0 发给单片机。
+项目 4 已经自动被 rm_demo 调用：识别到有效装甲板后会将装甲板中心坐标通过 /dev/ttyUSB0 发给单片机。
 
 工程注释
 - `project1_camera`: 跨 Windows/Ubuntu 的 `myCamera` 类，支持构造、析构、`read`、参数设置。
@@ -80,6 +80,6 @@ python3 best.py
 
 摄像头模式会持续运行，按 `Esc` 退出；图片模式只处理一帧，因此速度为零或没有明显运动箭头是正常现象。
 
-`rm_demo` 启动时会以 115200 波特率自动打开 `/dev/ttyUSB0`。每检测到一个有效装甲板，程序向串口发送 `0xAA + 4 字节 float 距离(mm) + 0xBB`；终端出现 `Serial TX` 即表示一帧已写入 USB-TTL。接收端必须按相同的 32 位浮点字节序解析。
+`rm_demo` 启动时会以 115200 波特率自动打开 `/dev/ttyUSB0`。每检测到一个有效装甲板，程序向串口发送 `0xAA + 4 字节 float 中心x(像素) + 4 字节 float 中心y(像素) + 0xBB`；终端出现 `Serial TX` 即表示一帧已写入 USB-TTL。接收端必须按相同的 32 位浮点字节序，依次解析 `x` 和 `y`。
 
 串口使用示例：`mySerialPort port; port.open("/dev/ttyUSB0", 115200);`。
