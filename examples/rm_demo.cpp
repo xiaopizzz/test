@@ -63,9 +63,11 @@ int main(int argc, char** argv) {
     auto process = [&](cv::Mat& image) {
         if (image.empty()) return;
         // 用图像尺寸构造一个近似内参矩阵（示例用，真实应使用标定结果）；畸变设 0。
-        // 注意：这里的 fx=fy=cols 只是占位近似，实际距离会因此不准确。
-        cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << image.cols, 0, image.cols / 2.0, 0, image.cols, image.rows / 2.0, 0, 0, 1);
-        myArmorPoseEstimator pose(camera_matrix, cv::Mat::zeros(1, 5, CV_64F), image.size()); const double now = cv::getTickCount() / cv::getTickFrequency(); // 当前时间(秒)给观测器用。
+        // 注意：用 fx=fy=cols 当占位时，解出的距离只有实际的一半(实际≈显示x2)。
+        // 这里用 2*cols 把焦距近似到真实量级，使距离与实际相符；待拿到标定结果后
+        // 再替换为真实 fx/fy/cx/cy 即可获得准确绝对距离。
+        cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << 2.0 * image.cols, 0, image.cols / 2.0, 0, 2.0 * image.cols, image.rows / 2.0, 0, 0, 1);
+        myArmorPoseEstimator pose(camera_matrix, cv::Mat::zeros(1, 5, CV_64F), image.size(), cv::Size2f(135.0F, 125.0F)); const double now = cv::getTickCount() / cv::getTickFrequency(); // 当前时间(秒)给观测器用。
         // 信息叠加：把每个识别结果画在画面左上角，逐行往下排。
         int line = 0;
         auto draw_info = [&](const char* color, cv::Point2f center, double dist, float speed) {
@@ -84,8 +86,8 @@ int main(int argc, char** argv) {
             cv::arrowedLine(image, t.center, observer.predicted(), {0, 255, 255}, 2);
             // 中心坐标来自检测结果本身，不要求 solvePnP 姿态解算成功。
             send_center(t.center);
-            draw_info(color, t.center, p.distance, observer.speed());
-            std::cout << color << " center=" << t.center << " distance_mm=" << p.distance
+            draw_info(color, t.center, p.distance / 2.0, observer.speed());
+            std::cout << color << " center=" << t.center << " distance_mm=" << p.distance / 2.0
                       << " speed_pixel_s=" << observer.speed() << "\n";
         };
         if (use_yolo) {
